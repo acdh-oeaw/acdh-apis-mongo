@@ -56,8 +56,8 @@ def relations_to_mongo():
                 rel_obj['global_id'] = f"{settings.APIS_BASE_URI}/relation/{x.id}"
                 rel_obj['id'] = x.id
                 rel_obj['relation'] = model.__name__.lower()
-                rel_obj['start_date'] = x.start_date
-                rel_obj['end_date'] = x.end_date
+                rel_obj['start_date'] = f"{x.start_date}"
+                rel_obj['end_date'] = f"{x.end_date}"
                 rel_obj['start_date_written'] = x.start_date_written
                 rel_obj['end_date_written'] = x.end_date_written
                 rel_obj['source'] = {
