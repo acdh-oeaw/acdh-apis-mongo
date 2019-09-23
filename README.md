@@ -1,4 +1,4 @@
-# acdh-apis-neo4j
+# acdh-apis-mongo
 
 a django app for serializing data from APIS-projects to mongo-db
 
