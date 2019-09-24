@@ -21,6 +21,7 @@ client = MongoClient(MONGO_URL)
 db = client.apis
 entities = db.entities
 relations = db.relations
+errors = db.errors
 
 
 def is_public():
@@ -46,11 +47,22 @@ def entities_to_mongo():
         db.entities.create_index([("loc", GEO2D)])
         projects = db.projects
         projects.find_one_and_replace({'title': PM['title']}, PM, upsert=True)
-
         for model in apps.get_app_config('apis_entities').get_models():
             print(model)
-            for x in model.objects.all()[:50]:
-                my_ent = deepcopy(x.get_serialization())
+            for x in model.objects.all():
+                try:
+                    my_ent = deepcopy(x.get_serialization())
+                except Exception as e:
+                    my_error = {
+                        "global_id": f"{PM['title']}__{x.id}__{model.__name__.lower()}",
+                        "error_msg": f"{e}",
+                        "project_title": PM['title'],
+                        "last_modified": datetime.datetime.utcnow()
+                    }
+                    errors.find_one_and_replace(
+                        {'url': my_error['global_id']}, my_error, upsert=True
+                    )
+                    continue
                 if x.get_child_class() == 'Place':
                     latlng = [x.get_child_entity().lng, x.get_child_entity().lat]
                     if latlng[0]:
@@ -58,18 +70,29 @@ def entities_to_mongo():
                 my_ent['project'] = PM['title']
                 my_ent['last_modified'] = datetime.datetime.utcnow()
                 try:
-                    my_ent['start_date_iso'] = datetime.datetime.combine(
+                    my_ent['start_date'] = datetime.datetime.combine(
                         x.start_date, datetime.datetime.min.time()
                     )
                 except:
                     pass
                 try:
-                    my_ent['end_date_iso'] = datetime.datetime.combine(
+                    my_ent['end_date'] = datetime.datetime.combine(
                         x.end_date, datetime.datetime.min.time()
                     )
                 except:
                     pass
-                entities.find_one_and_replace({'id': x.id}, my_ent, upsert=True)
+                try:
+                    entities.find_one_and_replace({'url': my_ent['url']}, my_ent, upsert=True)
+                except Exception as e:
+                    my_error = {
+                        "url": my_ent['url'],
+                        "error_msg": f"{e}",
+                        "project_title": PM['title'],
+                        "last_modified": datetime.datetime.utcnow()
+                    }
+                    errors.find_one_and_replace(
+                        {'url': my_ent['url']}, my_error, upsert=True
+                    )
         print(datetime.datetime.now())
         print('done')
     else:
@@ -81,7 +104,7 @@ def relations_to_mongo():
         print(datetime.datetime.now())
         for model in apps.get_app_config('apis_relations').get_models():
             print(model)
-            for x in model.objects.all()[:50]:
+            for x in model.objects.all():
                 rel_obj = {}
                 try:
                     source_field = getattr(x, x._meta.get_fields()[-2].name)
@@ -91,20 +114,18 @@ def relations_to_mongo():
                     source_field = None
                     rel_type = None
                     target_field = None
-                if source_field is not None:
+                if source_field is not None and target_field is not None:
                     rel_obj['global_id'] = f"{settings.APIS_BASE_URI}/relation/{x.id}"
                     rel_obj['id'] = x.id
                     rel_obj['relation'] = model.__name__.lower()
-                    rel_obj['start_date'] = f"{x.start_date}"
-                    rel_obj['end_date'] = f"{x.end_date}"
                     try:
-                        my_ent['start_date_iso'] = datetime.datetime.combine(
+                        rel_obj['start_date'] = datetime.datetime.combine(
                             x.start_date, datetime.datetime.min.time()
                         )
                     except:
                         pass
                     try:
-                        my_ent['end_date_iso'] = datetime.datetime.combine(
+                        rel_obj['end_date'] = datetime.datetime.combine(
                             x.end_date, datetime.datetime.min.time()
                         )
                     except:
@@ -126,10 +147,21 @@ def relations_to_mongo():
                         "label": rel_type.label,
                         "name": rel_type.name
                     }
-                    rel_obj['project'] = PM
-                    relations.find_one_and_replace(
-                        {'global_id': rel_obj['global_id']}, rel_obj, upsert=True
-                    )
+                    rel_obj['project'] = PM['title']
+                    try:
+                        relations.find_one_and_replace(
+                            {'global_id': rel_obj['global_id']}, rel_obj, upsert=True
+                        )
+                    except Exception as e:
+                        my_error = {
+                            "url": rel_obj['global_id'],
+                            "error_msg": f"{e}",
+                            "project_title": PM['title'],
+                            "last_modified": datetime.datetime.utcnow()
+                        }
+                        errors.find_one_and_replace(
+                            {'url': my_ent['url']}, my_error, upsert=True
+                        )
             print(datetime.datetime.now())
     else:
         print(RETURN_STRING)
