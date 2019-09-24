@@ -6,6 +6,8 @@ from pymongo import MongoClient, GEO2D
 from django.apps import apps
 from django.conf import settings
 
+from reversion.models import Revision
+
 from webpage.utils import PROJECT_METADATA as PM
 
 rel_url = settings.APIS_BASE_URI
@@ -22,6 +24,56 @@ db = client.apis
 entities = db.entities
 relations = db.relations
 errors = db.errors
+
+
+def get_last_modified_entity():
+    """ returns the latest 'last_modified' date of the project's entities """
+    try:
+        last_update = entities.find(
+            {'project': PM['title']}
+        ).sort('last_modified', -1).limit(1)[0]['last_modified']
+    except Exception as e:
+        print(e)
+        last_update = datetime.datetime.utcnow()
+    return last_update
+
+
+def get_last_modified_relation():
+    """ returns the latest 'last_modified' date of the project's relations """
+    try:
+        last_update = relations.find(
+            {'project': PM['title']}
+        ).sort('last_modified', -1).limit(1)[0]['last_modified']
+    except Exception as e:
+        print(e)
+        last_update = datetime.datetime.utcnow()
+    return last_update
+
+
+def entities_to_dump(last_dump_date=get_last_modified_entity()):
+    "returns all entities modified since the last dump"
+    try:
+        entity_ids = [
+            y.version_set.all()[0].object_id for y in Revision.objects.filter(
+                date_created__gt=last_dump_date
+            )
+        ]
+    except IndexError:
+        entity_ids = []
+    return entity_ids
+
+
+def relations_to_dump(last_dump_date=get_last_modified_relation()):
+    "returns all entities modified since the last dump"
+    try:
+        entity_ids = [
+            y.version_set.all()[0].object_id for y in Revision.objects.filter(
+                date_created__gt=last_dump_date
+            )
+        ]
+    except IndexError:
+        entity_ids = []
+    return set(entity_ids)
 
 
 def is_public():
@@ -47,9 +99,11 @@ def entities_to_mongo():
         db.entities.create_index([("loc", GEO2D)])
         projects = db.projects
         projects.find_one_and_replace({'title': PM['title']}, PM, upsert=True)
+        get_ids = entities_to_dump()
+        print(f"found {get_ids} modified objects")
         for model in apps.get_app_config('apis_entities').get_models():
             print(model)
-            for x in model.objects.all():
+            for x in model.objects.filter(id__in=get_ids):
                 try:
                     my_ent = deepcopy(x.get_serialization())
                 except Exception as e:
@@ -101,10 +155,12 @@ def entities_to_mongo():
 
 def relations_to_mongo():
     if is_public():
+        get_ids = relations_to_dump()
         print(datetime.datetime.now())
+        print(f"found {get_ids} modified objects")
         for model in apps.get_app_config('apis_relations').get_models():
             print(model)
-            for x in model.objects.all():
+            for x in model.objects.filter(id__in=get_ids):
                 rel_obj = {}
                 try:
                     source_field = getattr(x, x._meta.get_fields()[-2].name)
