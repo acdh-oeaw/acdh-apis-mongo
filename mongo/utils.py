@@ -100,7 +100,7 @@ def entities_to_mongo():
         projects = db.projects
         projects.find_one_and_replace({'title': PM['title']}, PM, upsert=True)
         get_ids = entities_to_dump()
-        print(f"found {get_ids} modified objects")
+        print(f"found {len(get_ids)} modified objects")
         for model in apps.get_app_config('apis_entities').get_models():
             print(model)
             for x in model.objects.filter(id__in=get_ids):
@@ -157,7 +157,7 @@ def relations_to_mongo():
     if is_public():
         get_ids = relations_to_dump()
         print(datetime.datetime.now())
-        print(f"found {get_ids} modified objects")
+        print(f"found {len(get_ids)} modified objects")
         for model in apps.get_app_config('apis_relations').get_models():
             print(model)
             for x in model.objects.filter(id__in=get_ids):
