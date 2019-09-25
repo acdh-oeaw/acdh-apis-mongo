@@ -216,7 +216,7 @@ def relations_to_mongo():
                     }
                     rel_obj['relation_type'] = {
                         "id": f"{rel_type.id}",
-                        "url": f"{settings.APIS_BASE_URI}/vocabularies/{rel_class}/{rel_type.id}",
+                        "url": f"{settings.APIS_BASE_URI}/apis/api/vocabularies/{rel_class}/{rel_type.id}",
                         "label": rel_type.label,
                         "name": rel_type.name
                     }
