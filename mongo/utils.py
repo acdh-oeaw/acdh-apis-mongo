@@ -25,6 +25,8 @@ entities = db.entities
 relations = db.relations
 errors = db.errors
 
+some_day_way_past = datetime.datetime.strptime('Jun 1 2000  1:33PM', '%b %d %Y %I:%M%p')
+
 
 def get_last_modified_entity():
     """ returns the latest 'last_modified' date of the project's entities """
@@ -34,7 +36,7 @@ def get_last_modified_entity():
         ).sort('last_modified', -1).limit(1)[0]['last_modified']
     except Exception as e:
         print(e)
-        last_update = datetime.datetime.utcnow()
+        last_update = some_day_way_past
     return last_update
 
 
@@ -46,7 +48,7 @@ def get_last_modified_relation():
         ).sort('last_modified', -1).limit(1)[0]['last_modified']
     except Exception as e:
         print(e)
-        last_update = datetime.datetime.utcnow()
+        last_update = some_day_way_past
     return last_update
 
 
@@ -97,6 +99,10 @@ def entities_to_mongo():
     if is_public():
         print(datetime.datetime.now())
         db.entities.create_index([("loc", GEO2D)])
+        db.entities.create_index([("uris.uri", -1)])
+        db.entities.create_index([("name", -1)])
+        db.entities.create_index([("start_date", -1)])
+        db.entities.create_index([("end_date", -1)])
         projects = db.projects
         projects.find_one_and_replace({'title': PM['title']}, PM, upsert=True)
         get_ids = entities_to_dump()
@@ -155,6 +161,15 @@ def entities_to_mongo():
 
 def relations_to_mongo():
     if is_public():
+        db.relations.create_index([("start_date", -1)])
+        db.relations.create_index([("end_date", -1)])
+        db.relations.create_index([("source.name", -1)])
+        db.relations.create_index([("target.name", -1)])
+        db.relations.create_index([("source.url", -1)])
+        db.relations.create_index([("target.url", -1)])
+        db.relations.create_index([("relation.name", -1)])
+        db.relations.create_index([("relation.id", -1)])
+        db.relations.create_index([("relation.url", -1)])
         get_ids = relations_to_dump()
         print(datetime.datetime.now())
         print(f"found {len(get_ids)} modified objects")
@@ -171,9 +186,10 @@ def relations_to_mongo():
                     rel_type = None
                     target_field = None
                 if source_field is not None and target_field is not None:
+                    rel_class = model.__name__.lower()
                     rel_obj['global_id'] = f"{settings.APIS_BASE_URI}/relation/{x.id}"
                     rel_obj['id'] = x.id
-                    rel_obj['relation'] = model.__name__.lower()
+                    rel_obj['relation'] = rel_class
                     try:
                         rel_obj['start_date'] = datetime.datetime.combine(
                             x.start_date, datetime.datetime.min.time()
@@ -199,7 +215,8 @@ def relations_to_mongo():
                         "name": target_field.name
                     }
                     rel_obj['relation_type'] = {
-                        "id": rel_type.id,
+                        "id": f"{rel_type.id}",
+                        "url": f"{settings.APIS_BASE_URI}/vocabularies/{rel_class}/{rel_type.id}",
                         "label": rel_type.label,
                         "name": rel_type.name
                     }
